@@ -211,12 +211,9 @@ io.on('connection', (socket) => {
         console.log('Client Disconnected');
     });
 });
+// මේ විදියට මාරු කරන්න
+const PORT = process.env.PORT || 3000; 
 
-const PORT = 3000;
 server.listen(PORT, '0.0.0.0', () => {
-    console.log(`\n==================================================`);
-    console.log(`🚀 SMARTBOARD SERVER v2.6 - READY`);
-    console.log(`📊 History Logging: Advanced (Report Optimized)`);
-    console.log(`🔗 URL: http://localhost:${PORT}`);
-    console.log(`==================================================\n`);
+    console.log(`🚀 Server running on port ${PORT}`);
 });
