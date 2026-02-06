@@ -1,0 +1,27 @@
+{
+  "schedule": {
+    "start": "06:00",
+    "end": "12:02"
+  },
+  "devices": [
+    {
+      "id": "dev1",
+      "sn": 1,
+      "name": "Smart Board 01",
+      "location": "Hall A",
+      "classNo": "10-A",
+      "power": "ON",
+      "alarmOn": true
+    },
+    {
+      "id": "FAKE-DEVICE-007",
+      "sn": 2,
+      "name": "New Device FAKE-DEVICE-007",
+      "location": "Auto Detected",
+      "classNo": "N/A",
+      "power": "ON",
+      "alarmOn": true
+    }
+  ],
+  "history": []
+}

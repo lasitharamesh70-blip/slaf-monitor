@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SLAF - SMARTBOARD POWER MONITORING</title>
+    
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+
+    <style>
+        :root { --primary: #2c3e50; --danger: #e74c3c; --success: #2ecc71; --accent: #3498db; --warning: #f1c40f; --purple: #9b59b6; }
+        body { margin: 0; background: url('background.jpg') center/cover fixed; font-family: 'Segoe UI', sans-serif; }
+        
+        #login-page { position: fixed; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: flex; justify-content: center; align-items: center; z-index: 10000; }
+        .login-card { background: white; padding: 40px; border-radius: 20px; text-align: center; width: 380px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
+        #dashboard { display: none; padding: 20px; }
+        
+        .header { background: rgba(255,255,255,0.95); padding: 15px 30px; border-radius: 15px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 5px 20px rgba(0,0,0,0.1); margin-bottom: 20px; border-left: 8px solid var(--primary); }
+        
+        .summary-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-bottom: 20px; }
+        .stat-card { background: white; padding: 20px; border-radius: 15px; text-align: center; box-shadow: 0 5px 15px rgba(0,0,0,0.1); border-bottom: 5px solid #ddd; }
+        
+        .nav-bar { background: var(--primary); padding: 12px; border-radius: 12px; display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; align-items: center; }
+        .nav-bar button { background: transparent; border: 1.5px solid white; color: white; padding: 8px 15px; cursor: pointer; border-radius: 8px; font-weight: bold; transition: 0.3s; }
+        .nav-bar button:hover { background: white; color: var(--primary); }
+
+        .main-grid { display: grid; grid-template-columns: 2.5fr 1fr; gap: 20px; }
+        .card { background: white; border-radius: 15px; padding: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.15); overflow-x: auto; }
+        
+        table { width: 100%; border-collapse: collapse; }
+        th { background: #f8f9fa; padding: 12px; text-align: left; border-bottom: 2px solid #dee2e6; }
+        td { padding: 12px; border-bottom: 1px solid #eee; font-size: 14px; }
+
+        .status-dot { height: 10px; width: 10px; border-radius: 50%; display: inline-block; margin-right: 5px; }
+        .online { background: var(--success); box-shadow: 0 0 8px var(--success); }
+        .offline { background: #95a5a6; }
+
+        .log-box { height: 450px; overflow-y: auto; background: #1a252f; color: #2ecc71; padding: 15px; border-radius: 12px; font-family: 'Courier New', monospace; font-size: 12px; }
+        .log-entry { border-bottom: 1px solid #2c3e50; padding: 4px 0; }
+
+        .modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index: 9999; }
+        .modal-content { background: white; width: 450px; margin: 50px auto; padding: 30px; border-radius: 20px; text-align: center; border-top: 5px solid var(--danger); position: relative; }
+        input, select { width: 90%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 8px; }
+        .admin-only { display: none; }
+        .badge-group { background: #f0f2f5; padding: 4px 8px; border-radius: 6px; font-size: 12px; }
+    </style>
+</head>
+<body>
+
+<audio id="alarm-sound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" preload="auto" loop></audio>
+
+<div id="login-page">
+    <div class="login-card">
+        <img src="logo.png" height="100" style="margin-bottom:15px;" onerror="this.src='https://via.placeholder.com/100?text=SLAF'">
+        <h2 style="color: var(--primary); font-size: 20px; margin-top: 10px;">SRI LANKA AIR FORCE</h2>
+        <p style="color: #7f8c8d; font-size: 13px; margin-bottom: 20px;">SmartBoard Power Monitoring System</p>
+        <input type="text" id="user_id" placeholder="User ID">
+        <input type="password" id="user_pass" placeholder="Password">
+        <select id="user_role">
+            <option value="viewer">VIEWER</option>
+            <option value="admin">ADMINISTRATOR</option>
+        </select>
+        <button onclick="handleLogin()" style="width:100%; padding:15px; background:var(--primary); color:white; border:none; border-radius:8px; cursor:pointer; font-weight:bold; margin-top: 10px;">LOGIN</button>
+    </div>
+</div>
+
+<div id="dashboard">
+    <div class="header">
+        <div style="display:flex; align-items:center;">
+            <img src="logo.png" height="60" style="border-radius:5px;" onerror="this.src='https://via.placeholder.com/60?text=SLAF'">
+            <div style="margin-left:20px;">
+                <h2 style="margin:0; font-size: 22px; color: var(--primary); letter-spacing: 1px;">SRI LANKA AIR FORCE</h2>
+                <span style="font-size: 12px; color: var(--success); font-weight: bold;"><i class="fas fa-circle" style="font-size: 8px;"></i> Smartboard Power Monitoring System</span>
+            </div>
+        </div>
+        <div style="display:flex; align-items:center; gap:25px;">
+            <div id="rtc-display" style="font-weight:bold; background:var(--primary); color:white; padding:10px 15px; border-radius:10px; font-family: monospace; box-shadow: inset 0 0 10px rgba(0,0,0,0.2);"></div>
+            <div class="bell-wrapper" onclick="showModal('alarm-modal')" style="position:relative; cursor:pointer; background: #eee; padding: 10px; border-radius: 50%;">
+                <i id="bell-icon" class="fas fa-bell" style="font-size:22px; color:var(--primary);"></i>
+                <span id="bell-badge" style="position:absolute; top:-5px; right:-5px; background:var(--danger); color:white; border-radius:50%; padding:2px 6px; font-size:10px; display:none; border: 2px solid white;">0</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="summary-container">
+        <div class="stat-card" style="border-color: var(--success);"><p>ON Devices</p><h2 id="summary-on">0</h2></div>
+        <div class="stat-card" style="border-color: var(--accent);"><p>Usage (kWh)</p><h2 id="summary-units">0.00</h2></div>
+        <div class="stat-card" style="border-color: var(--warning);"><p>Est. Bill (LKR)</p><h2 id="summary-cost">0.00</h2></div>
+        <div class="stat-card" style="border-color: var(--purple);"><p>Service Alerts</p><h2 id="summary-service" style="color:var(--danger)">0</h2></div>
+    </div>
+
+    <div class="nav-bar">
+        <button onclick="showModal('report-modal')"><i class="fas fa-file-pdf"></i> Reports</button>
+        <button class="admin-only" onclick="showModal('schedule-modal')"><i class="fas fa-clock"></i> Schedule</button>
+        <button class="admin-only" onclick="showModal('time-modal')"><i class="fas fa-sync-alt"></i> Sync RTC</button>
+        <button class="admin-only" onclick="showModal('user-modal')"><i class="fas fa-user-plus"></i> Users</button>
+        <button class="admin-only" onclick="showModal('add-device-modal')" style="background:var(--success); border:none;"><i class="fas fa-plus-circle"></i> Add Device</button>
+        <button onclick="location.reload()" style="background:var(--danger); border:none; margin-left:auto;">LOGOUT</button>
+    </div>
+
+    <div class="main-grid">
+        <div class="card">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                <h3 style="margin:0;"><i class="fas fa-desktop"></i> Live Monitor</h3>
+                <input type="text" id="deviceSearch" onkeyup="filterDevices()" placeholder="Search..." style="width:250px; padding:8px; border-radius:8px; border:1px solid #ddd;">
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>S/N</th><th>Health</th><th>Device Name</th><th>Location</th><th>Status</th><th>Work Time</th><th>Switch</th><th>Alarm</th><th>Edit</th>
+                    </tr>
+                </thead>
+                <tbody id="device-rows"></tbody>
+            </table>
+        </div>
+
+        <div class="card">
+            <h3><i class="fas fa-history"></i> System Activity Logs</h3>
+            <div id="log-container" class="log-box"></div>
+            <button onclick="clearLogs()" style="width:100%; margin-top:10px; border:none; background:#eee; padding:8px; border-radius:5px; cursor:pointer;">Clear Logs</button>
+        </div>
+    </div>
+</div>
+
+<div id="schedule-modal" class="modal"><div class="modal-content">
+    <h3>📅 Working Schedule</h3>
+    Start: <input type="time" id="sched_start">
+    End: <input type="time" id="sched_end">
+    <button onclick="updateSchedule()" style="background:var(--success); color:white; width:100%; padding:12px; border-radius:8px;">Update Schedule</button>
+    <button onclick="closeModal('schedule-modal')">Close</button>
+</div></div>
+
+<div id="time-modal" class="modal"><div class="modal-content">
+    <h3>🕒 Sync System RTC</h3>
+    <input type="datetime-local" id="rtc_input">
+    <button onclick="syncRTC()" style="background:var(--accent); color:white; width:100%; padding:12px; border-radius:8px;">Sync Now</button>
+    <button onclick="closeModal('time-modal')">Close</button>
+</div></div>
+
+<div id="user-modal" class="modal"><div class="modal-content">
+    <h3>👤 User Management</h3>
+    <input type="text" id="new_id" placeholder="New User ID">
+    <input type="password" id="new_pass" placeholder="Password">
+    <select id="new_role"><option value="viewer">Viewer</option><option value="admin">Admin</option></select>
+    <button onclick="addUser()" style="background:var(--primary); color:white; width:100%; padding:12px; border-radius:8px;">Add User</button>
+    <button onclick="closeModal('user-modal')">Close</button>
+</div></div>
+
+<div id="add-device-modal" class="modal"><div class="modal-content">
+    <h3>➕ Register New Board</h3>
+    <input type="text" id="n_id" placeholder="Device ID (e.g. ESP-01)">
+    <input type="text" id="n_name" placeholder="Board Name">
+    <input type="text" id="n_loc" placeholder="Location">
+    <button onclick="socket.emit('addDevice', {id:document.getElementById('n_id').value, name:document.getElementById('n_name').value, location:document.getElementById('n_loc').value}); closeModal('add-device-modal');" style="background:var(--success); color:white; width:100%; padding:12px; border-radius:8px;">Add Device</button>
+    <button onclick="closeModal('add-device-modal')">Cancel</button>
+</div></div>
+
+<div id="edit-modal" class="modal"><div class="modal-content">
+    <h3>✏️ Edit Device Settings</h3>
+    <input type="hidden" id="e_id"><input type="text" id="e_name" placeholder="Name">
+    <input type="text" id="e_loc" placeholder="Location">
+    <input type="text" id="e_class" placeholder="Class No">
+    <input type="number" id="e_hours" placeholder="Current Work Hours">
+    <button onclick="saveEdit()" style="background:var(--success); color:white; padding:12px; width:100%; border-radius:8px;">Save</button>
+    <button onclick="closeModal('edit-modal')">Cancel</button>
+</div></div>
+
+<div id="report-modal" class="modal"><div class="modal-content">
+    <h3>📊 Generate Detailed Usage Report</h3>
+    <button onclick="generateFullReport()" style="width:100%; padding:15px; background:var(--danger); color:white; border-radius:8px; font-weight:bold;">DOWNLOAD LOG REPORT (PDF)</button>
+    <button onclick="closeModal('report-modal')">Cancel</button>
+</div></div>
+
+<div id="alarm-modal" class="modal"><div class="modal-content"><h3>⚠️ Security Alerts</h3><div id="alert-list"></div><button onclick="closeModal('alarm-modal')">Close</button></div></div>
+
+<script>
+    // පද්ධතියේ ස්ථාවර Ngrok Domain එක මෙතැනට ඇතුළත් කර ඇත
+    const socket = io('https://winter-uniaxial-inflexibly.ngrok-free.dev');
+
+    let userRole = 'viewer';
+    let currentDevices = [];
+    let historyLogs = [];
+    let sysSchedule = { start: "07:30", end: "13:30" };
+    
+    const GV2_UNIT_PRICE = 14.55;
+    const GV2_FIXED_CHARGE = 3000.00;
+    const GV2_DEMAND = 1100.00;
+
+    function handleLogin() {
+        const id = document.getElementById('user_id').value;
+        const pass = document.getElementById('user_pass').value;
+        if(id === "50689" && pass === "Ramesh@21") {
+            userRole = document.getElementById('user_role').value;
+            document.getElementById('login-page').style.display = 'none';
+            document.getElementById('dashboard').style.display = 'block';
+            if(userRole === 'admin') document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'inline-block');
+            addLog("User logged in: " + id);
+        } else { Swal.fire('Error', 'Incorrect Credentials!', 'error'); }
+    }
+
+    socket.on('sync', (data) => {
+        currentDevices = data.devices || [];
+        historyLogs = data.history || [];
+        sysSchedule = data.schedule || { start: "07:30", end: "13:30" };
+        const sStart = document.getElementById('sched_start');
+        const sEnd = document.getElementById('sched_end');
+        if(sStart) sStart.value = sysSchedule.start;
+        if(sEnd) sEnd.value = sysSchedule.end;
+        renderTable();
+        updateSummary();
+        renderLogs();
+    });
+
+    function renderTable() {
+        const tbody = document.getElementById('device-rows');
+        tbody.innerHTML = "";
+        let serviceCount = 0;
+        currentDevices.forEach(d => {
+            const health = d.current > 0 || d.power === 'ON' ? 'online' : 'offline';
+            const isService = d.hours >= 2000;
+            if(isService) serviceCount++;
+            tbody.innerHTML += `
+                <tr>
+                    <td>${d.sn}</td>
+                    <td><span class="status-dot ${health}"></span></td>
+                    <td><b>${d.name}</b></td>
+                    <td><span class="badge-group">${d.location || 'N/A'}</span></td>
+                    <td style="color:${d.power==='ON'?'#2ecc71':'#e74c3c'}; font-weight:bold;">${d.power}</td>
+                    <td><span style="color:${isService?'red':'black'}">${d.hours}h</span></td>
+                    <td><button onclick="toggleDev('${d.id}','${d.power}')" ${userRole==='viewer'?'disabled':''}>Toggle</button></td>
+                    <td><input type="checkbox" onchange="socket.emit('alarmToggle',{id:'${d.id}',state:this.checked})" ${d.alarmOn?'checked':''} ${userRole==='viewer'?'disabled':''}></td>
+                    <td><button onclick="openEdit('${d.id}')" ${userRole==='viewer'?'disabled':''}>Edit</button></td>
+                </tr>`;
+        });
+        document.getElementById('summary-service').innerText = serviceCount;
+    }
+
+    function toggleDev(id, p) { socket.emit('control', {id, cmd: p === 'ON' ? 'OFF' : 'ON'}); }
+
+    function openEdit(id) {
+        const d = currentDevices.find(x => x.id === id);
+        document.getElementById('e_id').value = d.id;
+        document.getElementById('e_name').value = d.name;
+        document.getElementById('e_loc').value = d.location || "";
+        document.getElementById('e_class').value = d.classNo || "";
+        document.getElementById('e_hours').value = d.hours;
+        showModal('edit-modal');
+    }
+
+    function saveEdit() {
+        socket.emit('saveEdit', { 
+            id: document.getElementById('e_id').value, 
+            name: document.getElementById('e_name').value, 
+            location: document.getElementById('e_loc').value, 
+            classNo: document.getElementById('e_class').value,
+            hours: document.getElementById('e_hours').value 
+        });
+        closeModal('edit-modal');
+    }
+
+    function generateFullReport() {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF('l', 'mm', 'a4');
+        const now = new Date();
+        const dateStr = now.toLocaleDateString('en-GB');
+        const timeStr = now.toLocaleTimeString('en-GB');
+
+        try { doc.addImage('logo.png', 'PNG', 14, 10, 20, 20); } catch(e) {}
+        doc.setFontSize(20);
+        doc.setTextColor(44, 62, 80);
+        doc.setFont("helvetica", "bold");
+        doc.text("SRI LANKA AIR FORCE", 38, 18);
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "normal");
+        doc.text("SMARTBOARD POWER MONITORING & USAGE LOG REPORT", 38, 24);
+        doc.setFontSize(9);
+        doc.text(`Generated: ${dateStr} ${timeStr}`, 230, 15);
+        doc.line(14, 32, 283, 32);
+
+        const reportData = historyLogs.filter(h => h.type === "control").map((h, index) => {
+            const parts = h.time.split(', ');
+            return [index + 1, h.name || "N/A", h.location || "N/A", h.classNo || "N/A", h.action || "Toggle", parts[1] || "N/A", parts[0] || "N/A"];
+        });
+
+        doc.autoTable({
+            startY: 38,
+            head: [['S/N', 'Device Name', 'Location', 'Class No', 'Usage (ON/OFF)', 'Time', 'Date']],
+            body: reportData,
+            theme: 'striped',
+            headStyles: { fillColor: [44, 62, 80], halign: 'center' },
+            styles: { fontSize: 9, halign: 'center' },
+            columnStyles: { 1: { halign: 'left' }, 2: { halign: 'left' } }
+        });
+
+        doc.save(`SLAF_Usage_Log_${dateStr.replace(/\//g,'-')}.pdf`);
+    }
+
+    function addLog(msg) {
+        const logBox = document.getElementById('log-container');
+        const time = new Date().toLocaleTimeString('en-GB');
+        logBox.innerHTML = `<div class="log-entry">[${time}] ${msg}</div>` + logBox.innerHTML;
+    }
+
+    function renderLogs() {
+        const logBox = document.getElementById('log-container');
+        logBox.innerHTML = historyLogs.map(h => `<div class="log-entry"><b>[${h.time.split(', ')[1]}]</b> ${h.event}</div>`).join('');
+    }
+
+    function updateSummary() {
+        let onCount = currentDevices.filter(d => d.power === 'ON').length;
+        let units = (onCount * 180 * 6 * 22) / 1000;
+        let bill = (units * GV2_UNIT_PRICE) + GV2_FIXED_CHARGE + (onCount * 0.22 * GV2_DEMAND);
+        document.getElementById('summary-on').innerText = onCount;
+        document.getElementById('summary-units').innerText = units.toFixed(2);
+        document.getElementById('summary-cost').innerText = bill.toLocaleString('en-LK');
+    }
+
+    setInterval(() => {
+        const now = new Date();
+        document.getElementById('rtc-display').innerText = now.toLocaleString('en-GB');
+        const nowTime = now.getHours().toString().padStart(2,'0') + ":" + now.getMinutes().toString().padStart(2,'0');
+        let alertHTML = "";
+        let count = 0;
+        currentDevices.forEach(d => {
+            if(d.power === 'ON' && (nowTime < sysSchedule.start || nowTime > sysSchedule.end) && d.alarmOn) {
+                count++;
+                alertHTML += `<div style="padding:10px; border-left:5px solid red; background:#fff5f5; margin-bottom:8px;">⚠️ <b>${d.name}</b> is still ON!</div>`;
+            }
+        });
+        document.getElementById('bell-badge').innerText = count;
+        document.getElementById('bell-badge').style.display = count > 0 ? 'block' : 'none';
+        document.getElementById('alert-list').innerHTML = alertHTML || "No current violations.";
+        if(count > 0) document.getElementById('alarm-sound').play().catch(()=>{});
+        else document.getElementById('alarm-sound').pause();
+    }, 1000);
+
+    function filterDevices() {
+        let val = document.getElementById('deviceSearch').value.toLowerCase();
+        let rows = document.getElementById('device-rows').getElementsByTagName('tr');
+        for (let row of rows) row.style.display = row.innerText.toLowerCase().includes(val) ? '' : 'none';
+    }
+
+    function updateSchedule() { socket.emit('updateSchedule', { start: document.getElementById('sched_start').value, end: document.getElementById('sched_end').value }); closeModal('schedule-modal'); }
+    function syncRTC() { socket.emit('updateRTC', { time: document.getElementById('rtc_input').value }); closeModal('time-modal'); }
+    function addUser() { socket.emit('addNewUser', { id: document.getElementById('new_id').value, pass: document.getElementById('new_pass').value, role: document.getElementById('new_role').value }); closeModal('user-modal'); }
+    function clearLogs() { socket.emit('clearLogs'); }
+    function showModal(id) { document.getElementById(id).style.display = 'block'; }
+    function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+</script>
+</body>
+</html>
