@@ -1,7 +1,6 @@
 {
-  "name": "slaf-monitoring-system",
+  "name": "smartboard-server",
   "version": "1.0.0",
-  "description": "SLAF Smartboard Monitoring",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
