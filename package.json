@@ -1,5 +1,5 @@
 {
-  "name": "smartboard-server",
+  "name": "slaf-smartboard",
   "version": "1.0.0",
   "main": "server.js",
   "scripts": {
@@ -7,6 +7,8 @@
   },
   "dependencies": {
     "express": "^4.18.2",
-    "socket.io": "^4.7.2"
+    "socket.io": "^4.7.2",
+    "path": "^0.12.7",
+    "fs": "0.0.1-security"
   }
 }
