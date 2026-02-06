@@ -1,1 +1,0 @@
-ngrok http --domain=winter-uniaxial-inflexibly.ngrok-free.dev 3000
